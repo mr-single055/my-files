@@ -1,0 +1,614 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>three.js + ribbons</title>
+    <style>
+      body { 
+        margin: 0; 
+        overflow:hidden;
+        user-select:none;
+      }
+      canvas { display: block; }
+      .title {
+        position: absolute;
+        font-family: Arial;
+        color: #fff;
+        font-size: .8rem;
+        mix-blend-mode:normal;
+      }
+      .title._1 { top: 20px; left: 30px; }
+      .title._2 { bottom: 20px; left: 30px; }
+      .title._3 { bottom: 20px; right: 30px; cursor: pointer; }
+
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from 'https://cdn.skypack.dev/three@0.136.0/build/three.module.js';
+      import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+      import { UnrealBloomPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+      import { EffectComposer } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/EffectComposer.js';
+      import { RenderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/RenderPass.js';
+      import { ShaderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/ShaderPass.js';
+      import { DotScreenPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/DotScreenPass.js';
+      import { GlitchPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/GlitchPass.js';
+      import { GUI } from 'https://cdn.skypack.dev/dat.gui';
+      import { gsap } from 'https://cdn.skypack.dev/gsap@3.7.1';
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      camera.position.set(0, 0, 40);
+
+      const composer = new EffectComposer(renderer);
+
+      let ribbons = [];
+      const ribbonCount = 12;
+      const group = new THREE.Group();
+      scene.add(group);
+
+      let guiParams = {
+
+        // bloomPass()
+        activateBloom:true,
+        bloomStrength: 0.5,
+        bloomRadius: 2,
+        bloomThreshold: 0,
+
+        // dotScreenPass()
+        dotScale: 0.1,
+        activateDotScreen: false,
+
+        // glitchPass()
+        activateGlitch: false,
+        glitchAmount: 0.5,
+        glitchAngle: 0.02,
+        glitchSeed: 0.02,
+        glitchSeedX: 0.02,
+        glitchSeedY: 0.02,
+        glitchDistortionX: 0.5,
+        glitchDistortionY: 0.5,
+        glitchColS: 0.5
+      };
+
+      const light = new THREE.AmbientLight(0xff0000, 1);
+      scene.add(light);
+
+      const pointLight = new THREE.PointLight( 0xff0000, 1, 100 );
+      pointLight.position.set( 50, 50, 50 );
+      pointLight.castShadow = true;
+      scene.add( pointLight );
+
+      pointLight.shadow.mapSize.width = 512; // default
+      pointLight.shadow.mapSize.height = 512; // default
+      pointLight.shadow.camera.near = 0.5; // default
+      pointLight.shadow.camera.far = 500; // default
+
+      /*
+      const curve = new THREE.CatmullRomCurve3( [
+        new THREE.Vector3(-10, 0, 0),
+        new THREE.Vector3(-5, 5, 5),
+        new THREE.Vector3(0, 0, 10),
+        new THREE.Vector3(5, -5, 5),
+        new THREE.Vector3(10, 0, 0),
+        new THREE.Vector3(5, 5, -5),
+        new THREE.Vector3(0, 0, -10),
+        new THREE.Vector3(-5, -5, -5),
+        new THREE.Vector3(-10, 0, 0)
+      ] );
+
+      const points = curve.getPoints( 50 );
+      const geometry = new THREE.BufferGeometry().setFromPoints( points );
+      const material = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+      const curveObject = new THREE.Line( geometry, material );
+      */
+
+      function createRibbons() {
+        for (let i = 0; i < ribbonCount; i++) {
+          const geometry = new THREE.TubeGeometry(
+            // path and points
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(-10, 0, 0),
+              new THREE.Vector3(-5, 5, 5),
+              new THREE.Vector3(0, 0, 10),
+              new THREE.Vector3(5, -5, 5),
+              new THREE.Vector3(10, 0, 0),
+              new THREE.Vector3(5, 5, -5),
+              new THREE.Vector3(0, 0, -10),
+              new THREE.Vector3(-5, -5, -5),
+              new THREE.Vector3(-10, 0, 0)
+            ], true, 'catmullrom', 5), 400, Math.random() * 0.5 + 0.1, Math.random() * 0.5 + 12, true);
+
+          const material = new THREE.MeshBasicMaterial({ 
+            color: Math.random() * 0xffffff, 
+            side: THREE.DoubleSide });
+          const ribbon = new THREE.Mesh(geometry, material);
+
+          ribbon.position.set(
+            -.5 *( Math.random() * 10 - 5), 
+            -.5 * (Math.random() * 10 - 5), 
+            -.5 *( Math.random() * 10 - 5));
+
+          ribbon.rotation.set(
+            Math.random() * 30 - 5, 
+            Math.random() * 30 - 5, 
+            Math.random() * 30 - 5);
+
+          ribbons.push(ribbon);
+
+          group.add(ribbon);
+          //animateRibbon(ribbon, geometry);
+
+        }
+      }
+      createRibbons();
+
+      window.addEventListener('dblclick', onDoubleClick);
+
+      function onDoubleClick() {
+        ribbons.forEach(ribbon => {
+          ribbon.material.color.set(Math.random() * 0xffffff);
+
+          const newGeometry = new THREE.TubeGeometry(
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(-10, 0, 0),
+              new THREE.Vector3(-5, 5, 5),
+              new THREE.Vector3(0, 0, 10),
+              new THREE.Vector3(5, -5, 5),
+              new THREE.Vector3(10, 0, 0),
+              new THREE.Vector3(5, 5, -5),
+              new THREE.Vector3(0, 0, -10),
+              new THREE.Vector3(-5, -5, -5),
+              new THREE.Vector3(-10, 0, 0)
+            ], true, 'catmullrom', 5), 400, Math.random() * 0.5 + 0.1, Math.random() * 0.5 + 12, true);
+
+          ribbon.geometry.dispose(); // Dispose of the old geometry
+          ribbon.geometry = newGeometry; // Assign the new geometry
+        });
+      }
+
+
+      function animateRibbon(ribbon, geometry) {
+        const tubeLength = geometry.parameters.path.getLength();
+        const duration = .5; 
+
+        gsap.to(ribbon.position, {
+          x: `+=${tubeLength}`,
+          duration: duration,
+          repeat: -1,
+          yoyo: true,
+          ease: "power1.inOut"
+        });
+      }
+
+
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      const  bloomPass = new UnrealBloomPass(new THREE.Vector2( window.innerWidth, window.innerHeight), 
+                                             guiParams.bloomStrength, guiParams.bloomRadius, guiParams.bloomThreshold);
+      composer.addPass(bloomPass);
+
+      const glitchPass = new GlitchPass();
+      glitchPass.enabled = false;
+      composer.addPass(glitchPass);
+
+      const dotScreenPass = new DotScreenPass();
+      dotScreenPass.enabled = false;
+      composer.addPass(dotScreenPass);
+
+
+      function createGuiDat() {
+
+        const gui = new GUI({ width: '100%',closeOnTop:true, closed:true });
+        gui.domElement.querySelector('.close-button').innerHTML = 'Open Controls';
+
+        // bloomPass()
+        gui.add(guiParams, 'activateBloom').onChange(value => {bloomPass.enabled = value});
+        gui.add(guiParams, 'bloomStrength', 0, 3).onChange(value => {bloomPass.strength = value});
+        gui.add(guiParams, 'bloomRadius', 0, 3).onChange(value => { bloomPass.radius = value});
+        gui.add(guiParams, 'bloomThreshold', 0, 1).onChange(value => {bloomPass.threshold = value});
+
+        // dotScreenPass()
+        gui.add(guiParams, 'activateDotScreen').onChange(value => {dotScreenPass.enabled = value});
+        gui.add(guiParams, 'dotScale', 0.1, 2, 0.1).onChange(value => {dotScreenPass.uniforms['scale'].value = value;});
+
+        // glitchPass()
+        gui.add(guiParams, 'activateGlitch').onChange(value => {glitchPass.enabled = value});      
+        gui.add(guiParams, 'glitchAmount', 0, 1).onChange(value => glitchPass.uniforms['amount'].value = value);
+        gui.add(guiParams, 'glitchAngle', 0, Math.PI).onChange(value => glitchPass.uniforms['angle'].value = value);
+        gui.add(guiParams, 'glitchSeed', 0, 1).onChange(value => glitchPass.uniforms['seed'].value = value);
+        gui.add(guiParams, 'glitchSeedX', 0, 1).onChange(value => glitchPass.uniforms['seed_x'].value = value);
+        gui.add(guiParams, 'glitchSeedY', 0, 1).onChange(value => glitchPass.uniforms['seed_y'].value = value);
+        gui.add(guiParams, 'glitchDistortionX', 0, 1).onChange(value => glitchPass.uniforms['distortion_x'].value = value);
+        gui.add(guiParams, 'glitchDistortionY', 0, 1).onChange(value => glitchPass.uniforms['distortion_y'].value = value);
+        gui.add(guiParams, 'glitchColS', 0, 1).onChange(value => glitchPass.uniforms['col_s'].value = value);
+      }
+      createGuiDat();
+      function animate() {
+        requestAnimationFrame(animate);
+        composer.render();
+        ribbons.forEach(ribbon => {
+          ribbon.rotation.x += 0.01;
+          ribbon.rotation.y += 0.01;
+          ribbon.position.x += Math.sin(ribbon.rotation.x) * 0.01;
+          ribbon.position.y += Math.cos(ribbon.rotation.y) * 0.01;
+        });
+      }
+
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        composer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Mouse interaction
+      function onMouseMove(event) {
+        const x = (event.clientX / window.innerWidth) * 2 - 1;
+        const y = - (event.clientY / window.innerHeight) * 2 + 1;
+        ribbons.forEach(ribbon => {
+          ribbon.position.x += (x * 0.1);
+          ribbon.position.y += (y * 0.1);
+          ribbon.rotation.x += (x * 0.1);
+          ribbon.rotation.y += (y * 0.1);
+        });
+      }
+
+      // window.addEventListener('mousemove', onMouseMove);
+      // window.addEventListener('touchmove', onMouseMove);
+
+
+
+      createTitles()
+      function createTitles() {
+        const title1 = document.createElement('h3');
+        title1.classList.add('title', '_1');
+        title1.textContent = 'three.js + ribbons';
+
+        const title2 = document.createElement('h3');
+        title2.classList.add('title', '_2');
+        title2.textContent = 'double click';
+
+        const title3 = document.createElement('h3');
+        title3.classList.add('title', '_3');
+        title3.textContent = 'Fullscreen on';
+        title3.addEventListener('click', toggleFullscreen);
+
+        document.body.appendChild(title1);
+        document.body.appendChild(title2);
+        document.body.appendChild(title3);
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+          document.querySelector('.title._3').textContent = 'Fullscreen off';
+        } else if (document.exitFullscreen) {
+          document.exitFullscreen();
+          document.querySelector('.title._3').textContent = 'Fullscreen on';
+        }
+      }
+
+    </script>
+  </body>
+</html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>three.js + ribbons</title>
+    <style>
+      body { 
+        margin: 0; 
+        overflow:hidden;
+        user-select:none;
+      }
+      canvas { display: block; }
+      .title {
+        position: absolute;
+        font-family: Arial;
+        color: #fff;
+        font-size: .8rem;
+        mix-blend-mode:normal;
+      }
+      .title._1 { top: 20px; left: 30px; }
+      .title._2 { bottom: 20px; left: 30px; }
+      .title._3 { bottom: 20px; right: 30px; cursor: pointer; }
+
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from 'https://cdn.skypack.dev/three@0.136.0/build/three.module.js';
+      import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+      import { UnrealBloomPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+      import { EffectComposer } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/EffectComposer.js';
+      import { RenderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/RenderPass.js';
+      import { ShaderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/ShaderPass.js';
+      import { DotScreenPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/DotScreenPass.js';
+      import { GlitchPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/GlitchPass.js';
+      import { GUI } from 'https://cdn.skypack.dev/dat.gui';
+      import { gsap } from 'https://cdn.skypack.dev/gsap@3.7.1';
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      camera.position.set(0, 0, 40);
+
+      const composer = new EffectComposer(renderer);
+
+      let ribbons = [];
+      const ribbonCount = 12;
+      const group = new THREE.Group();
+      scene.add(group);
+
+      let guiParams = {
+
+        // bloomPass()
+        activateBloom:true,
+        bloomStrength: 0.5,
+        bloomRadius: 2,
+        bloomThreshold: 0,
+
+        // dotScreenPass()
+        dotScale: 0.1,
+        activateDotScreen: false,
+
+        // glitchPass()
+        activateGlitch: false,
+        glitchAmount: 0.5,
+        glitchAngle: 0.02,
+        glitchSeed: 0.02,
+        glitchSeedX: 0.02,
+        glitchSeedY: 0.02,
+        glitchDistortionX: 0.5,
+        glitchDistortionY: 0.5,
+        glitchColS: 0.5
+      };
+
+      const light = new THREE.AmbientLight(0xff0000, 1);
+      scene.add(light);
+
+      const pointLight = new THREE.PointLight( 0xff0000, 1, 100 );
+      pointLight.position.set( 50, 50, 50 );
+      pointLight.castShadow = true;
+      scene.add( pointLight );
+
+      pointLight.shadow.mapSize.width = 512; // default
+      pointLight.shadow.mapSize.height = 512; // default
+      pointLight.shadow.camera.near = 0.5; // default
+      pointLight.shadow.camera.far = 500; // default
+
+      /*
+      const curve = new THREE.CatmullRomCurve3( [
+        new THREE.Vector3(-10, 0, 0),
+        new THREE.Vector3(-5, 5, 5),
+        new THREE.Vector3(0, 0, 10),
+        new THREE.Vector3(5, -5, 5),
+        new THREE.Vector3(10, 0, 0),
+        new THREE.Vector3(5, 5, -5),
+        new THREE.Vector3(0, 0, -10),
+        new THREE.Vector3(-5, -5, -5),
+        new THREE.Vector3(-10, 0, 0)
+      ] );
+
+      const points = curve.getPoints( 50 );
+      const geometry = new THREE.BufferGeometry().setFromPoints( points );
+      const material = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+      const curveObject = new THREE.Line( geometry, material );
+      */
+
+      function createRibbons() {
+        for (let i = 0; i < ribbonCount; i++) {
+          const geometry = new THREE.TubeGeometry(
+            // path and points
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(-10, 0, 0),
+              new THREE.Vector3(-5, 5, 5),
+              new THREE.Vector3(0, 0, 10),
+              new THREE.Vector3(5, -5, 5),
+              new THREE.Vector3(10, 0, 0),
+              new THREE.Vector3(5, 5, -5),
+              new THREE.Vector3(0, 0, -10),
+              new THREE.Vector3(-5, -5, -5),
+              new THREE.Vector3(-10, 0, 0)
+            ], true, 'catmullrom', 5), 400, Math.random() * 0.5 + 0.1, Math.random() * 0.5 + 12, true);
+
+          const material = new THREE.MeshBasicMaterial({ 
+            color: Math.random() * 0xffffff, 
+            side: THREE.DoubleSide });
+          const ribbon = new THREE.Mesh(geometry, material);
+
+          ribbon.position.set(
+            -.5 *( Math.random() * 10 - 5), 
+            -.5 * (Math.random() * 10 - 5), 
+            -.5 *( Math.random() * 10 - 5));
+
+          ribbon.rotation.set(
+            Math.random() * 30 - 5, 
+            Math.random() * 30 - 5, 
+            Math.random() * 30 - 5);
+
+          ribbons.push(ribbon);
+
+          group.add(ribbon);
+          //animateRibbon(ribbon, geometry);
+
+        }
+      }
+      createRibbons();
+
+      window.addEventListener('dblclick', onDoubleClick);
+
+      function onDoubleClick() {
+        ribbons.forEach(ribbon => {
+          ribbon.material.color.set(Math.random() * 0xffffff);
+
+          const newGeometry = new THREE.TubeGeometry(
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(-10, 0, 0),
+              new THREE.Vector3(-5, 5, 5),
+              new THREE.Vector3(0, 0, 10),
+              new THREE.Vector3(5, -5, 5),
+              new THREE.Vector3(10, 0, 0),
+              new THREE.Vector3(5, 5, -5),
+              new THREE.Vector3(0, 0, -10),
+              new THREE.Vector3(-5, -5, -5),
+              new THREE.Vector3(-10, 0, 0)
+            ], true, 'catmullrom', 5), 400, Math.random() * 0.5 + 0.1, Math.random() * 0.5 + 12, true);
+
+          ribbon.geometry.dispose(); // Dispose of the old geometry
+          ribbon.geometry = newGeometry; // Assign the new geometry
+        });
+      }
+
+
+      function animateRibbon(ribbon, geometry) {
+        const tubeLength = geometry.parameters.path.getLength();
+        const duration = .5; 
+
+        gsap.to(ribbon.position, {
+          x: `+=${tubeLength}`,
+          duration: duration,
+          repeat: -1,
+          yoyo: true,
+          ease: "power1.inOut"
+        });
+      }
+
+
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      const  bloomPass = new UnrealBloomPass(new THREE.Vector2( window.innerWidth, window.innerHeight), 
+                                             guiParams.bloomStrength, guiParams.bloomRadius, guiParams.bloomThreshold);
+      composer.addPass(bloomPass);
+
+      const glitchPass = new GlitchPass();
+      glitchPass.enabled = false;
+      composer.addPass(glitchPass);
+
+      const dotScreenPass = new DotScreenPass();
+      dotScreenPass.enabled = false;
+      composer.addPass(dotScreenPass);
+
+
+      function createGuiDat() {
+
+        const gui = new GUI({ width: '100%',closeOnTop:true, closed:true });
+        gui.domElement.querySelector('.close-button').innerHTML = 'Open Controls';
+
+        // bloomPass()
+        gui.add(guiParams, 'activateBloom').onChange(value => {bloomPass.enabled = value});
+        gui.add(guiParams, 'bloomStrength', 0, 3).onChange(value => {bloomPass.strength = value});
+        gui.add(guiParams, 'bloomRadius', 0, 3).onChange(value => { bloomPass.radius = value});
+        gui.add(guiParams, 'bloomThreshold', 0, 1).onChange(value => {bloomPass.threshold = value});
+
+        // dotScreenPass()
+        gui.add(guiParams, 'activateDotScreen').onChange(value => {dotScreenPass.enabled = value});
+        gui.add(guiParams, 'dotScale', 0.1, 2, 0.1).onChange(value => {dotScreenPass.uniforms['scale'].value = value;});
+
+        // glitchPass()
+        gui.add(guiParams, 'activateGlitch').onChange(value => {glitchPass.enabled = value});      
+        gui.add(guiParams, 'glitchAmount', 0, 1).onChange(value => glitchPass.uniforms['amount'].value = value);
+        gui.add(guiParams, 'glitchAngle', 0, Math.PI).onChange(value => glitchPass.uniforms['angle'].value = value);
+        gui.add(guiParams, 'glitchSeed', 0, 1).onChange(value => glitchPass.uniforms['seed'].value = value);
+        gui.add(guiParams, 'glitchSeedX', 0, 1).onChange(value => glitchPass.uniforms['seed_x'].value = value);
+        gui.add(guiParams, 'glitchSeedY', 0, 1).onChange(value => glitchPass.uniforms['seed_y'].value = value);
+        gui.add(guiParams, 'glitchDistortionX', 0, 1).onChange(value => glitchPass.uniforms['distortion_x'].value = value);
+        gui.add(guiParams, 'glitchDistortionY', 0, 1).onChange(value => glitchPass.uniforms['distortion_y'].value = value);
+        gui.add(guiParams, 'glitchColS', 0, 1).onChange(value => glitchPass.uniforms['col_s'].value = value);
+      }
+      createGuiDat();
+      function animate() {
+        requestAnimationFrame(animate);
+        composer.render();
+        ribbons.forEach(ribbon => {
+          ribbon.rotation.x += 0.01;
+          ribbon.rotation.y += 0.01;
+          ribbon.position.x += Math.sin(ribbon.rotation.x) * 0.01;
+          ribbon.position.y += Math.cos(ribbon.rotation.y) * 0.01;
+        });
+      }
+
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        composer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Mouse interaction
+      function onMouseMove(event) {
+        const x = (event.clientX / window.innerWidth) * 2 - 1;
+        const y = - (event.clientY / window.innerHeight) * 2 + 1;
+        ribbons.forEach(ribbon => {
+          ribbon.position.x += (x * 0.1);
+          ribbon.position.y += (y * 0.1);
+          ribbon.rotation.x += (x * 0.1);
+          ribbon.rotation.y += (y * 0.1);
+        });
+      }
+
+      // window.addEventListener('mousemove', onMouseMove);
+      // window.addEventListener('touchmove', onMouseMove);
+
+
+
+      createTitles()
+      function createTitles() {
+        const title1 = document.createElement('h3');
+        title1.classList.add('title', '_1');
+        title1.textContent = 'three.js + ribbons';
+
+        const title2 = document.createElement('h3');
+        title2.classList.add('title', '_2');
+        title2.textContent = 'double click';
+
+        const title3 = document.createElement('h3');
+        title3.classList.add('title', '_3');
+        title3.textContent = 'Fullscreen on';
+        title3.addEventListener('click', toggleFullscreen);
+
+        document.body.appendChild(title1);
+        document.body.appendChild(title2);
+        document.body.appendChild(title3);
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+          document.querySelector('.title._3').textContent = 'Fullscreen off';
+        } else if (document.exitFullscreen) {
+          document.exitFullscreen();
+          document.querySelector('.title._3').textContent = 'Fullscreen on';
+        }
+      }
+
+    </script>
+  </body>
+</html>
